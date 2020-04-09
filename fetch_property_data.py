@@ -57,16 +57,20 @@ class TransitCache:
                 return self.locations_cache[code]
         return None
 
+
 cache = TransitCache(config['cache']['cache_dir'])
+
 
 def get_data_from_cache(cache_type, property_data):
     global cache
     return cache.fetch(property_data, cache_type)
 
+
 def store_data_in_cache(cache_type, data):
     global cache
     cache.store(data, cache_type)
-    
+
+  
 def cached(cache_type):
     def cached_function(func):
         def helper(*args, **kwargs):
@@ -78,6 +82,7 @@ def cached(cache_type):
             return result
         return helper
     return cached_function
+
 
 def parallel(max_threads):
     def parallel_function(func):
@@ -103,12 +108,12 @@ def parallel(max_threads):
             return results
         return helper
     return parallel_function
-            
-            
+
 
 def get_total_duration(destination):
     return destination[0]['legs'][0]['duration']['value']
-    
+
+
 def get_first_transit_point(steps):
     first_point = dict()
     
@@ -131,7 +136,8 @@ def get_first_transit_point(steps):
             return first_point
     
     return None
-    
+
+
 def get_transit_points(destination):
     steps = destination[0]['legs'][0]['steps']
     
@@ -153,15 +159,12 @@ def extract_transit_info(destination):
     
     return info
 
+
 def get_transit_info(origin, destination):
     gmaps = googlemaps.Client(key=config['gmaps']['api_key'])
     directions_result = gmaps.directions(origin, destination, mode="transit")
-    #print(directions_result)
     return extract_transit_info(directions_result)
-    #data = dict()
-    #with open('test.json', 'r') as json_file:
-    #    data = json.load(json_file)
-    #return extract_info(data)
+
 
 def extract_type(types):
     for type in types:
@@ -172,6 +175,7 @@ def extract_type(types):
         elif type == 'light_rail_station':
             return 'LIGHT_RAIL'
     return 'TRANSIT'
+
     
 def extract_transit_locations(locations):
     transit_locations = []
@@ -183,6 +187,7 @@ def extract_transit_locations(locations):
         transit_locations.append(transit_location)
     return transit_locations
 
+
 def get_transit_locations(location, radius=500):
     gmaps = googlemaps.Client(key=config['gmaps']['api_key'])
     transit_locations = gmaps.places_nearby(location=location, radius=radius, type='subway_station')
@@ -192,6 +197,7 @@ def get_transit_locations(location, radius=500):
         transit_locations = gmaps.places_nearby(location=location, radius=radius, type='light_rail_station')
         
     return extract_transit_locations(transit_locations)
+
 
 @cached(CacheType.TRANSIT_INFO)
 def get_property_transit_info(property_data, destination):
@@ -209,17 +215,7 @@ def get_property_transit_info(property_data, destination):
         location['distance'] = int(geodesic(origin, dest).meters)
     
     return transit_info
-    
-def get_properties_transit_info(request):
-    destination = request['destination']
-    
-    properties_transit_info = []
-    for property in request['properties']:
-        transit_info = get_property_transit_info(property, destination)
-        if transit_info is not None:
-            properties_transit_info.append(transit_info)
-        
-    return properties_transit_info
+
 
 @cached(CacheType.TRANSIT_LOCATION)
 def get_property_transit_locations(property_data):
@@ -236,8 +232,22 @@ def get_property_transit_locations(property_data):
         location['distance'] = int(geodesic(origin, dest).meters)
     
     return property_transit_locations
-    
 
+
+@parallel(10)
+def get_properties_transit_info(request):
+    destination = request['destination']
+    
+    properties_transit_info = []
+    for property in request['properties']:
+        transit_info = get_property_transit_info(property, destination)
+        if transit_info is not None:
+            properties_transit_info.append(transit_info)
+        
+    return properties_transit_info
+
+    
+@parallel(10)
 def get_properties_nearby_transit_locations(request):
     properties_transit_locations = []
     for property in request['properties']:
