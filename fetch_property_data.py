@@ -1,113 +1,12 @@
 import googlemaps
 import json
 from geopy.distance import geodesic
-from enum import Enum
 from config import config
-from multiprocessing.pool import ThreadPool
-import math
-import copy
-
-class CacheType(Enum):
-    TRANSIT_INFO = 1
-    TRANSIT_LOCATION = 2
-    
-class TransitCache:
-    def __init__(self, cache_dir):
-        self.dir = cache_dir
-        self.info_cache = dict()
-        self.locations_cache = dict()
-        
-    def load(self):
-        try:
-            with open(self.dir + '/info_cache.json', 'r') as json_file:
-                self.info_cache = json.load(json_file)
-        except:
-            print('Bad Info Cache File!')
-            
-        try:
-            with open(self.dir + '/locations_cache.json', 'r') as json_file:
-                self.locations_cache = json.load(json_file)
-        except:
-            print('Bad Location Cache File!')
-    
-    def dump(self):
-        with open(self.dir + '/info_cache.json', 'w') as json_file:
-            json.dump(self.info_cache, json_file)
-        
-        with open(self.dir + '/locations_cache.json', 'w') as json_file:
-            json.dump(self.locations_cache, json_file)
-    
-    def store(self, data, cache_type):
-        code = data['code']
-        if cache_type == CacheType.TRANSIT_INFO:
-            if code not in self.info_cache:
-                self.info_cache[code] = data
-        elif cache_type == CacheType.TRANSIT_LOCATION:
-            if code not in self.locations_cache:
-                self.locations_cache[code] = data
-
-    
-    def fetch(self, property_data, cache_type):
-        code = property_data['code']
-        if cache_type == CacheType.TRANSIT_INFO:
-            if code in self.info_cache:
-                return self.info_cache[code]
-        elif cache_type == CacheType.TRANSIT_LOCATION:
-            if code in self.locations_cache:
-                return self.locations_cache[code]
-        return None
+from cache import TransitCache, CacheType
+from decorators import cached, parallel
 
 
 cache = TransitCache(config['cache']['cache_dir'])
-
-
-def get_data_from_cache(cache_type, property_data):
-    global cache
-    return cache.fetch(property_data, cache_type)
-
-
-def store_data_in_cache(cache_type, data):
-    global cache
-    cache.store(data, cache_type)
-
-  
-def cached(cache_type):
-    def cached_function(func):
-        def helper(*args, **kwargs):
-            result = get_data_from_cache(cache_type, args[0])
-            if result is None:
-                result = func(*args, **kwargs)
-                store_data_in_cache(cache_type, result)
-                
-            return result
-        return helper
-    return cached_function
-
-
-def parallel(max_threads):
-    def parallel_function(func):
-        def helper(*args, **kwargs):
-            base_rq = args[0]
-            properties = base_rq['properties']
-            properties_count = len(base_rq['properties'])
-            poperties_per_thread = math.ceil(properties_count / max_threads)
-            properties_sub_groups = [properties[i * poperties_per_thread:(i + 1) * poperties_per_thread] for i in range((properties_count + poperties_per_thread - 1) // poperties_per_thread )]
-            
-            pool = ThreadPool(processes=max_threads)
-            threads = []
-            for properties_list in properties_sub_groups:
-                new_rq = copy.copy(base_rq)
-                new_rq['properties'] = properties_list
-                threads.append(pool.apply_async(func, (new_rq,)))
-            
-            results = []
-            for thread in threads:
-                for data in thread.get():
-                    results.append(data)
-            
-            return results
-        return helper
-    return parallel_function
 
 
 def get_total_duration(destination):
@@ -199,7 +98,7 @@ def get_transit_locations(location, radius=500):
     return extract_transit_locations(transit_locations)
 
 
-@cached(CacheType.TRANSIT_INFO)
+@cached(cache, CacheType.TRANSIT_INFO)
 def get_property_transit_info(property_data, destination):
     origin_str = str(property_data['location']['lat']) + ", " + str(property_data['location']['lng'])
     destination_str = str(destination['lat']) + ", " + str(destination['lng'])
@@ -217,7 +116,7 @@ def get_property_transit_info(property_data, destination):
     return transit_info
 
 
-@cached(CacheType.TRANSIT_LOCATION)
+@cached(cache, CacheType.TRANSIT_LOCATION)
 def get_property_transit_locations(property_data):
     origin_str = str(property_data['location']['lat']) + ", " + str(property_data['location']['lng'])
     print('Location: ' + origin_str)
@@ -275,7 +174,4 @@ def get_properties_transit_info_and_locations(request):
     cache.dump()
         
     return properties_transit_info
-    
-cache.load()
 
-#request = json.loads('{"destination": {"lat": "45.464116", "lng": "9.191663"}, "properties": [{"code": "XXPAR001", "location": {"lat": "45.466171", "lng": "9.166363"}}]}')
