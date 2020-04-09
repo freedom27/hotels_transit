@@ -49,11 +49,9 @@ class TransitCache:
         code = property_data['code']
         if cache_type == CacheType.TRANSIT_INFO:
             if code in self.info_cache:
-                print('Found in cache...')
                 return self.info_cache[code]
         elif cache_type == CacheType.TRANSIT_LOCATION:
             if code in self.locations_cache:
-                print('Found in cache...')
                 return self.locations_cache[code]
         return None
 
@@ -87,11 +85,9 @@ def get_first_transit_point(steps):
     
     time_to_point = 0
     for step in steps:
-        print('Step ...')
         if step['travel_mode'] == 'WALKING':
             time_to_point = time_to_point + step['duration']['value']
         if step['travel_mode'] == 'TRANSIT':
-            print('Transit step found')
             first_point['location'] = step['transit_details']['departure_stop']['location']
             first_point['name'] = step['transit_details']['departure_stop']['name']
             try:
@@ -112,9 +108,7 @@ def get_transit_points(destination):
     
     points = []
     point = get_first_transit_point(steps)
-    print(point)
     if point is not None:
-        print('Point added...')
         points.append(point)
     
     return points
@@ -151,7 +145,6 @@ def extract_type(types):
     return 'TRANSIT'
     
 def extract_transit_locations(locations):
-    print(locations)
     transit_locations = []
     for location in locations['results']:
         transit_location = dict()
