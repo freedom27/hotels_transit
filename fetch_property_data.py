@@ -50,11 +50,16 @@ def get_transit_points(destination):
 
 def extract_transit_info(destination):
     info = dict()
-    info['time'] = get_total_duration(destination)
-    info['transit_types'] = ["WALKING"]
-    info['transit_locations'] = get_transit_points(destination)
-    for transit_location in info['transit_locations']:
-        info['transit_types'].append(transit_location['type'])
+    
+    try:
+        info['time'] = get_total_duration(destination)
+        info['transit_types'] = ["WALKING"]
+        info['transit_locations'] = get_transit_points(destination)
+        for transit_location in info['transit_locations']:
+            info['transit_types'].append(transit_location['type'])
+    except:
+        info = dict()
+        print('Somthing wrong with the response: ' + str(destination))
     
     return info
 
@@ -62,6 +67,9 @@ def extract_transit_info(destination):
 def get_transit_info(origin, destination):
     gmaps = googlemaps.Client(key=config['gmaps']['api_key'])
     directions_result = gmaps.directions(origin, destination, mode="transit")
+    if len(directions_result) == 0:
+        return dict()
+    
     return extract_transit_info(directions_result)
 
 
@@ -108,10 +116,11 @@ def get_property_transit_info(property_data, destination):
     transit_info = get_transit_info(origin_str, destination_str)
     transit_info['code'] = property_data['code']
     
-    for location in transit_info['transit_locations']:
-        origin = (property_data['location']['lat'], property_data['location']['lng'])
-        dest = (location['location']['lat'], location['location']['lng'])
-        location['distance'] = int(geodesic(origin, dest).meters)
+    if 'transit_locations' in transit_info:
+        for location in transit_info['transit_locations']:
+            origin = (property_data['location']['lat'], property_data['location']['lng'])
+            dest = (location['location']['lat'], location['location']['lng'])
+            location['distance'] = int(geodesic(origin, dest).meters)
     
     return transit_info
 
@@ -164,14 +173,12 @@ def get_properties_transit_info_and_locations(request):
     properties_transit_info = []
     for property in request['properties']:
         transit_info = get_property_transit_info(property, destination)
-        if transit_info is not None:
+        if transit_info is not None and 'transit_locations' in transit_info:
             if len(transit_info['transit_locations']) == 0:
                 property_transit_locations = get_property_transit_locations(property)
                 transit_info['transit_locations'] = property_transit_locations['transit_locations']
                 
             properties_transit_info.append(transit_info)
-    
-    cache.dump()
         
     return properties_transit_info
 
