@@ -49,6 +49,7 @@ class TransitCache:
             self.lock_info.release()
         elif cache_type == CacheType.TRANSIT_LOCATION:
             self.lock_locations.acquire()
+            print('Lock acquired')
             if code not in self.locations_cache:
                 self.locations_cache[code] = data
             self.lock_locations.release()
@@ -56,16 +57,15 @@ class TransitCache:
     
     def fetch(self, property_data, cache_type):
         code = property_data['code']
+        data = None
         if cache_type == CacheType.TRANSIT_INFO:
             self.lock_info.acquire()
             if code in self.info_cache:
                 data = self.info_cache[code]
-                self.lock_info.release()
-                return data
+            self.lock_info.release()
         elif cache_type == CacheType.TRANSIT_LOCATION:
             self.lock_locations.acquire()
             if code in self.locations_cache:
                 data = self.locations_cache[code]
-                self.lock_locations.release()
-                return data
-        return None
+            self.lock_locations.release()
+        return data
